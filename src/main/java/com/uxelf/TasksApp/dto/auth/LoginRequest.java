@@ -1,9 +1,9 @@
-package com.uxelf.TasksApp.dto;
+package com.uxelf.TasksApp.dto.auth;
 
 import lombok.Data;
 
 @Data
-public class RegisterRequest {
+public class LoginRequest {
     private String username;
     private String password;
 }

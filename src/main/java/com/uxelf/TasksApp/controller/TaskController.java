@@ -1,25 +1,72 @@
 package com.uxelf.TasksApp.controller;
 
+import com.uxelf.TasksApp.dto.tasks.CreateTaskRequest;
+import com.uxelf.TasksApp.dto.tasks.TaskResponse;
+import com.uxelf.TasksApp.dto.tasks.UpdateTaskRequest;
 import com.uxelf.TasksApp.entity.Task;
 import com.uxelf.TasksApp.repository.TaskRepository;
+import com.uxelf.TasksApp.security.UserPrincipal;
+import com.uxelf.TasksApp.service.TaskService;
+import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
+@AllArgsConstructor
 @RestController
+@RequestMapping("/tasks")
 public class TaskController {
 
     private final TaskRepository taskRepository;
+    private final TaskService taskService;
 
-    public TaskController(TaskRepository taskRepository){
-        this.taskRepository = taskRepository;
-    }
 
-    @GetMapping("/tasks")
+    @GetMapping("/all")
     public Iterable<Task> findAllTasks(){
         return this.taskRepository.findAll();
     }
 
-    @PostMapping("/tasks")
-    public Task addOneTask(@RequestBody Task task){
-        return this.taskRepository.save(task);
+    @GetMapping("/{id}")
+    public ResponseEntity<TaskResponse> getTask(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
+        TaskResponse taskResponse = taskService.getTaskById(id, user.getId());
+        return ResponseEntity.ok(taskResponse);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TaskResponse>> getUserTasks(@AuthenticationPrincipal UserPrincipal user){
+        List<TaskResponse> tasksResponses = taskService.getTasksByUser(user.getId());
+        return ResponseEntity.ok(tasksResponses);
+    }
+
+    @PostMapping
+    public ResponseEntity<TaskResponse> createTask(
+            @RequestBody @Valid CreateTaskRequest taskRequest,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
+        TaskResponse taskResponse = taskService.createTask(taskRequest, user.getId());
+        return ResponseEntity.ok(taskResponse);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<TaskResponse> updateTask(
+            @PathVariable Integer id,
+            @RequestBody UpdateTaskRequest taskRequest,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
+        TaskResponse taskResponse = taskService.updateTask(id, taskRequest, user.getId());
+        return ResponseEntity.ok(taskResponse);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTask(@PathVariable Integer id, @AuthenticationPrincipal UserPrincipal user){
+        taskService.deleteTask(id, user.getId());
+        return ResponseEntity.ok().build();
     }
 }

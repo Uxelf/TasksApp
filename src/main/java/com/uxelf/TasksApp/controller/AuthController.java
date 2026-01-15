@@ -1,12 +1,11 @@
 package com.uxelf.TasksApp.controller;
 
-import com.uxelf.TasksApp.dto.LoginRequest;
-import com.uxelf.TasksApp.dto.RegisterRequest;
+import com.uxelf.TasksApp.dto.auth.LoginRequest;
+import com.uxelf.TasksApp.dto.auth.RegisterRequest;
 import com.uxelf.TasksApp.entity.User;
 import com.uxelf.TasksApp.repository.UserRepository;
 import com.uxelf.TasksApp.security.UserPrincipal;
 import com.uxelf.TasksApp.service.JwtService;
-import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
@@ -14,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -71,13 +71,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(Authentication authentication) {
-        if (authentication.getPrincipal() == null) {
-            return ResponseEntity.status(401).build();
-        }
-
-        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
-
+    public ResponseEntity<?> me(@AuthenticationPrincipal UserPrincipal user) {
         return ResponseEntity.ok(Map.of(
                 "id", user.getId(),
                 "username", user.getUsername()

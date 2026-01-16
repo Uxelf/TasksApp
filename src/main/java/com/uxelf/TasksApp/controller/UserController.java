@@ -2,6 +2,7 @@ package com.uxelf.TasksApp.controller;
 
 import com.uxelf.TasksApp.entity.User;
 import com.uxelf.TasksApp.repository.UserRepository;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,7 +21,7 @@ public class UserController {
     }
 
     @PostMapping
-    public User addOneUser(@RequestBody User user){
+    public User addOneUser(@RequestBody @Valid User user){
         return this.userRepository.save(user);
     }
 }

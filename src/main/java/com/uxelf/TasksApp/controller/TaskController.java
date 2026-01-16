@@ -4,6 +4,7 @@ import com.uxelf.TasksApp.dto.tasks.CreateTaskRequest;
 import com.uxelf.TasksApp.dto.tasks.TaskResponse;
 import com.uxelf.TasksApp.dto.tasks.UpdateTaskRequest;
 import com.uxelf.TasksApp.entity.Task;
+import com.uxelf.TasksApp.entity.enums.TaskStatus;
 import com.uxelf.TasksApp.repository.TaskRepository;
 import com.uxelf.TasksApp.security.UserPrincipal;
 import com.uxelf.TasksApp.service.TaskService;
@@ -15,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @AllArgsConstructor
 @RestController
@@ -32,7 +34,7 @@ public class TaskController {
 
     @GetMapping("/{id}")
     public ResponseEntity<TaskResponse> getTask(
-            @PathVariable Integer id,
+            @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal user
     ){
         TaskResponse taskResponse = taskService.getTaskById(id, user.getId());
@@ -56,7 +58,7 @@ public class TaskController {
 
     @PutMapping("/{id}")
     public ResponseEntity<TaskResponse> updateTask(
-            @PathVariable Integer id,
+            @PathVariable UUID id,
             @RequestBody UpdateTaskRequest taskRequest,
             @AuthenticationPrincipal UserPrincipal user
     ){
@@ -65,8 +67,13 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Integer id, @AuthenticationPrincipal UserPrincipal user){
+    public ResponseEntity<Void> deleteTask(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal user){
         taskService.deleteTask(id, user.getId());
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<TaskStatus[]> getStatuses(){
+        return ResponseEntity.ok(TaskStatus.values());
     }
 }

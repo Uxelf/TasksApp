@@ -3,8 +3,7 @@ package com.uxelf.TasksApp.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -12,8 +11,9 @@ import java.util.List;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue
+    @Column(columnDefinition = "uuid")
+    private UUID id;
 
     @Column(nullable = false)
     private String username;

@@ -1,10 +1,11 @@
 package com.uxelf.TasksApp.dto.tasks;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 public class CreateTaskRequest {
@@ -13,7 +14,9 @@ public class CreateTaskRequest {
     @NotEmpty(message = "Description is required")
     private String description;
     @NotNull(message = "Start date is required")
-    private LocalDateTime start;
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate start;
     @NotNull(message = "End date is required")
-    private LocalDateTime end;
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate end;
 }

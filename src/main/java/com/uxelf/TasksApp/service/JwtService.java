@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -39,8 +40,8 @@ public class JwtService {
                 .getBody();
     }
 
-    public Integer getUserId(String token){
-        return validateToken(token).get("id", Integer.class);
+    public UUID getUserId(String token){
+        return validateToken(token).get("id", UUID.class);
     }
 
     public String getUsername(String token){

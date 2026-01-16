@@ -3,6 +3,7 @@ package com.uxelf.TasksApp.controller;
 import com.uxelf.TasksApp.dto.auth.LoginRequest;
 import com.uxelf.TasksApp.dto.auth.RegisterRequest;
 import com.uxelf.TasksApp.entity.User;
+import com.uxelf.TasksApp.exception.BusinessException;
 import com.uxelf.TasksApp.repository.UserRepository;
 import com.uxelf.TasksApp.security.UserPrincipal;
 import com.uxelf.TasksApp.service.JwtService;
@@ -31,10 +32,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response) {
         User user = userRepository.findByUsername(loginRequest.getUsername())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                .orElseThrow(() -> new BusinessException("User not found"));
 
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Contraseña incorrecta");
+            throw new BusinessException("Incorrect user or password");
         }
 
         this.AddJwtCookieToResponse(user, response);

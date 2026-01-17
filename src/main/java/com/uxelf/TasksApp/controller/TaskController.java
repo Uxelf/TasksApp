@@ -15,6 +15,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,15 +34,6 @@ public class TaskController {
         return this.taskRepository.findAll();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<TaskResponse> getTask(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal UserPrincipal user
-    ){
-        TaskResponse taskResponse = taskService.getTaskById(id, user.getId());
-        return ResponseEntity.ok(taskResponse);
-    }
-
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getUserTasks(@AuthenticationPrincipal UserPrincipal user){
         List<TaskResponse> tasksResponses = taskService.getTasksByUser(user.getId());
@@ -53,6 +46,33 @@ public class TaskController {
             @AuthenticationPrincipal UserPrincipal user
     ){
         TaskResponse taskResponse = taskService.createTask(taskRequest, user.getId());
+        return ResponseEntity.ok(taskResponse);
+    }
+
+    @GetMapping("/day")
+    public ResponseEntity<List<TaskResponse>> getDayTasks(
+            @RequestParam LocalDate date,
+            @AuthenticationPrincipal UserPrincipal user
+            ){
+        List<TaskResponse> taskResponses = taskService.getTaskForDay(user.getId(), date);
+        return ResponseEntity.ok(taskResponses);
+    }
+
+    @GetMapping("/month")
+    public ResponseEntity<List<TaskResponse>> getMonthTasks(
+            @RequestParam YearMonth date,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
+        List<TaskResponse> taskResponses = taskService.getTaskForMonth(user.getId(), date);
+        return ResponseEntity.ok(taskResponses);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<TaskResponse> getTask(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
+        TaskResponse taskResponse = taskService.getTaskById(id, user.getId());
         return ResponseEntity.ok(taskResponse);
     }
 

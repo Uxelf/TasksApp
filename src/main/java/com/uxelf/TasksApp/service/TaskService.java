@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,14 +60,29 @@ public class TaskService {
     }
 
     public List<TaskResponse> getTasksByUser(UUID userId){
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("User not found"));
 
-        List<Task> tasks = taskRepository.findByAuthor(user);
-        System.out.println(tasks);
-        return taskRepository.findByAuthor(user)
+        return taskRepository.findByAuthorId(userId)
                 .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public List<TaskResponse> getTaskForDay(UUID userId, LocalDate date){
+        List<Task> tasks = taskRepository.findTasksOverlappingDay(userId, date);
+        return tasks.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public List<TaskResponse> getTaskForMonth(UUID userId, YearMonth date){
+
+        LocalDate monthStart = date.atDay(1);
+        LocalDate monthEnd = date.atEndOfMonth();
+
+        List<Task> tasks = taskRepository.findTasksOverlappingMonth(userId, monthStart, monthEnd);
+        return tasks.stream()
                 .map(this::mapToResponse)
                 .toList();
     }

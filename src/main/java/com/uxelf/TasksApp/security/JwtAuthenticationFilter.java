@@ -1,13 +1,17 @@
 package com.uxelf.TasksApp.security;
 
+import com.uxelf.TasksApp.repository.UserRepository;
 import com.uxelf.TasksApp.service.JwtService;
+import com.uxelf.TasksApp.service.UserService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,13 +21,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+@AllArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserService userService;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
-        this.jwtService = jwtService;
-    }
 
     @Override
     protected void doFilterInternal(
@@ -37,6 +40,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             var claims = jwtService.validateToken(token);
             String idString = claims.get("id", String.class);
             UUID id = UUID.fromString(idString);
+
+            userService.getUserById(id);
 
             UserPrincipal principal = new UserPrincipal(
                     id,

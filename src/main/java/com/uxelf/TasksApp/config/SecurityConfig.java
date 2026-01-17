@@ -2,6 +2,8 @@ package com.uxelf.TasksApp.config;
 
 import com.uxelf.TasksApp.security.JwtAuthenticationFilter;
 import com.uxelf.TasksApp.service.JwtService;
+import com.uxelf.TasksApp.service.UserService;
+import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -12,13 +14,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+@AllArgsConstructor
 public class SecurityConfig {
 
     private final JwtService jwtService;
+    private final UserService userService;
 
-    public SecurityConfig(JwtService jwtService){
-        this.jwtService = jwtService;
-    }
 
     @Bean
     public BCryptPasswordEncoder passwordEncoder(){
@@ -27,7 +28,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, userService);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)

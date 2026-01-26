@@ -11,7 +11,6 @@ import java.time.LocalDate;
 public class CreateTaskRequest {
     @NotEmpty(message = "Title is required")
     private String title;
-    @NotEmpty(message = "Description is required")
     private String description;
     @NotNull(message = "Start date is required")
     @JsonFormat(pattern = "yyyy-MM-dd")

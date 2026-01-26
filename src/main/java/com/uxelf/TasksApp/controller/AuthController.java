@@ -82,20 +82,14 @@ public class AuthController {
     private void AddJwtCookieToResponse(User user, HttpServletResponse response){
         String token = jwtService.generateToken(user);
 
-        Cookie cookie = new Cookie("jwt", token);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 dias
-        response.addCookie(cookie);
-
-        ResponseCookie cookie2 = ResponseCookie.from("jwt", token)
+        ResponseCookie cookie = ResponseCookie.from("jwt", token)
                 .httpOnly(true)
                 .secure(false)  //! Http = false -> Https = true
-                .sameSite("None")
+                // .sameSite("None")
                 .path("/")
                 .maxAge(7 * 24 * 60 * 60)
                 .build();
 
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie2.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

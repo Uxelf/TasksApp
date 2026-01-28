@@ -5,6 +5,7 @@ import com.uxelf.TasksApp.dto.tasks.TaskResponse;
 import com.uxelf.TasksApp.dto.tasks.UpdateTaskRequest;
 import com.uxelf.TasksApp.entity.Task;
 import com.uxelf.TasksApp.entity.User;
+import com.uxelf.TasksApp.entity.enums.TaskStatus;
 import com.uxelf.TasksApp.exception.BusinessException;
 import com.uxelf.TasksApp.repository.TaskRepository;
 import com.uxelf.TasksApp.repository.UserRepository;
@@ -60,9 +61,6 @@ public class TaskService {
     }
 
     public List<TaskResponse> getTasksByUser(UUID userId){
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found"));
-
         return taskRepository.findByAuthorId(userId)
                 .stream()
                 .map(this::mapToResponse)
@@ -142,7 +140,7 @@ public class TaskService {
                 task.getStatus(),
                 task.getStart(),
                 task.getEnd(),
-                task.getEnd().isBefore(LocalDate.now())
+                task.getStatus() != TaskStatus.COMPLETED && task.getEnd().isBefore(LocalDate.now())
         );
     }
 }

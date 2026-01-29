@@ -4,6 +4,7 @@ import com.uxelf.TasksApp.security.JwtAuthenticationFilter;
 import com.uxelf.TasksApp.service.JwtService;
 import com.uxelf.TasksApp.service.UserService;
 import lombok.AllArgsConstructor;
+import org.hibernate.cfg.Environment;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,11 +54,10 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @Value("${cors.allowed.origins}")
-    private String allowedOrigins;
-
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${cors.allowed.origins}") String allowedOrigins
+    ) {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));

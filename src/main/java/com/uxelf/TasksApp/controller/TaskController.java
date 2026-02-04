@@ -29,11 +29,6 @@ public class TaskController {
     private final TaskService taskService;
 
 
-    @GetMapping("/all")
-    public Iterable<Task> findAllTasks(){
-        return this.taskRepository.findAll();
-    }
-
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getUserTasks(@AuthenticationPrincipal UserPrincipal user){
         List<TaskResponse> tasksResponses = taskService.getTasksByUser(user.getId());

@@ -21,24 +21,24 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TaskService {
 
+    private static final int MAX_TITLE_LENGTH = 255;
+    private static final int MAX_DESCRIPTION_LENGTH = 5000;
+    private static final int MAX_YEARS_IN_FUTURE = 10;
+
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
 
     public TaskResponse createTask(CreateTaskRequest request, UUID userId){
-        if (request.getEnd().isBefore(request.getStart())) {
-            throw new IllegalArgumentException("End date must be after start date");
-        }
-
-        if (request.getEnd().isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("End date must be in the future");
-        }
+        validateTitle(request.getTitle());
+        validateDescription(request.getDescription());
+        validateDates(request.getStart(), request.getEnd());
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("User not found"));
 
         Task task = new Task(
-                request.getTitle(),
-                request.getDescription(),
+                request.getTitle().trim(),
+                request.getDescription() != null ? request.getDescription().trim() : null,
                 request.getStart(),
                 request.getEnd(),
                 user
@@ -75,7 +75,6 @@ public class TaskService {
     }
 
     public List<TaskResponse> getTaskForMonth(UUID userId, YearMonth date){
-
         LocalDate monthStart = date.atDay(1);
         LocalDate monthEnd = date.atEndOfMonth();
 
@@ -86,7 +85,6 @@ public class TaskService {
     }
 
     public TaskResponse updateTask(UUID taskId, UpdateTaskRequest request, UUID userId){
-
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new BusinessException("Task not found"));
 
@@ -95,33 +93,36 @@ public class TaskService {
         }
 
         if (request.getTitle() != null){
-            if (request.getTitle().trim().isBlank())
-                throw new BusinessException("Title can't be empty");
-            task.setTitle(request.getTitle());
+            validateTitle(request.getTitle());
+            task.setTitle(request.getTitle().trim());
         }
 
-        if (request.getDescription() != null)
-            task.setDescription(request.getDescription());
+        if (request.getDescription() != null){
+            validateDescription(request.getDescription());
+            task.setDescription(request.getDescription().trim());
+        }
 
-        if (request.getStatus() != null)
+        if (request.getStatus() != null){
             task.setStatus(request.getStatus());
+        }
 
-        if (request.getStart() != null)
+        if (request.getStart() != null){
             task.setStart(request.getStart());
+        }
 
-        if (request.getEnd() != null)
+        if (request.getEnd() != null){
             task.setEnd(request.getEnd());
+        }
 
-        if (task.getEnd().isBefore(task.getStart()))
+        if (task.getEnd().isBefore(task.getStart())){
             throw new BusinessException("End date must be after start date");
-
+        }
 
         Task updated = taskRepository.save(task);
         return mapToResponse(updated);
     }
 
     public void deleteTask(UUID taskId, UUID userId){
-
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new BusinessException("Task not found"));
 
@@ -130,6 +131,44 @@ public class TaskService {
         }
 
         taskRepository.delete(task);
+    }
+
+    private void validateTitle(String title) {
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title can't be empty or whitespace");
+        }
+
+        if (title.length() > MAX_TITLE_LENGTH) {
+            throw new IllegalArgumentException("Title cannot exceed " + MAX_TITLE_LENGTH + " characters");
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("Description cannot exceed " + MAX_DESCRIPTION_LENGTH + " characters");
+        }
+    }
+
+    private void validateDates(LocalDate start, LocalDate end) {
+        if (start == null) {
+            throw new IllegalArgumentException("Start date cannot be null");
+        }
+
+        if (end == null) {
+            throw new IllegalArgumentException("End date cannot be null");
+        }
+
+        if (end.isBefore(start)) {
+            throw new IllegalArgumentException("End date must be after start date");
+        }
+
+        if (end.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("End date must be in the future");
+        }
+
+        if (end.isAfter(LocalDate.now().plusYears(MAX_YEARS_IN_FUTURE))) {
+            throw new IllegalArgumentException("End date cannot be more than " + MAX_YEARS_IN_FUTURE + " years in the future");
+        }
     }
 
     private TaskResponse mapToResponse(Task task) {

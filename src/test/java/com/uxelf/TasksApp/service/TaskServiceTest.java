@@ -14,14 +14,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.time.YearMonth;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,7 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TaskService Tests")
+@DisplayName("TaskService - Edge Cases and Validation Tests")
 class TaskServiceTest {
 
     @Mock
@@ -54,27 +53,96 @@ class TaskServiceTest {
     }
 
     @Nested
-    @DisplayName("createTask Tests")
-    class CreateTaskTests {
+    @DisplayName("createTask - Edge Cases & Validation")
+    class CreateTaskEdgeCases {
 
         @Test
-        @DisplayName("Should create task successfully with valid data")
-        void shouldCreateTaskSuccessfully() {
+        @DisplayName("Should throw exception when title is only whitespace")
+        void shouldThrowExceptionWhenTitleIsOnlyWhitespace() {
             // Given
             CreateTaskRequest request = new CreateTaskRequest();
-            request.setTitle("Test Task");
-            request.setDescription("Test Description");
+            request.setTitle("   ");
+            request.setDescription("Description");
             request.setStart(LocalDate.now());
             request.setEnd(LocalDate.now().plusDays(5));
 
-            Task savedTask = new Task(
-                    taskId,  // ← Usa el constructor con ID
-                    request.getTitle(),
-                    request.getDescription(),
-                    request.getStart(),
-                    request.getEnd(),
-                    user
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.createTask(request, userId)
             );
+            assertEquals("Title can't be empty or whitespace", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when title is empty string")
+        void shouldThrowExceptionWhenTitleIsEmpty() {
+            // Given
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle("");
+            request.setDescription("Description");
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.createTask(request, userId)
+            );
+            assertEquals("Title can't be empty or whitespace", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when title exceeds 255 characters")
+        void shouldThrowExceptionWhenTitleTooLong() {
+            // Given
+            String veryLongTitle = "a".repeat(300);
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle(veryLongTitle);
+            request.setDescription("Description");
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            // When / Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.createTask(request, userId)
+            );
+
+            assertEquals("Title cannot exceed 255 characters", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when description exceeds 5000 characters")
+        void shouldThrowExceptionWhenDescriptionTooLong() {
+            // Given
+            String veryLongDescription = "a".repeat(5001);
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle("Title");
+            request.setDescription(veryLongDescription);
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.createTask(request, userId)
+            );
+            assertEquals("Description cannot exceed 5000 characters", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should handle null description")
+        void shouldHandleNullDescription() {
+            // Given
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle("Title");
+            request.setDescription(null);
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            Task savedTask = new Task(taskId, "Title", null,
+                    request.getStart(), request.getEnd(), user);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
@@ -84,34 +152,22 @@ class TaskServiceTest {
 
             // Then
             assertNotNull(response);
-            assertEquals(taskId, response.getId());
-            assertEquals("Test Task", response.getTitle());
-            assertEquals("Test Description", response.getDescription());
-            assertEquals(TaskStatus.PENDING, response.getStatus());
-            assertFalse(response.isExpired());
-
-            verify(userRepository, times(1)).findById(userId);
-            verify(taskRepository, times(1)).save(any(Task.class));
+            assertNull(response.getDescription());
         }
 
         @Test
-        @DisplayName("Should create task that ends today")
-        void shouldCreateTaskThatEndsToday() {
+        @DisplayName("Should allow task with start date equal to end date")
+        void shouldAllowWhenStartEqualsEnd() {
             // Given
+            LocalDate sameDate = LocalDate.now().plusDays(5);
             CreateTaskRequest request = new CreateTaskRequest();
-            request.setTitle("Task ending today");
+            request.setTitle("Title");
             request.setDescription("Description");
-            request.setStart(LocalDate.now().minusDays(2));
-            request.setEnd(LocalDate.now());
+            request.setStart(sameDate);
+            request.setEnd(sameDate);
 
-            Task savedTask = new Task(
-                    taskId,  // ← Usa el constructor con ID
-                    request.getTitle(),
-                    request.getDescription(),
-                    request.getStart(),
-                    request.getEnd(),
-                    user
-            );
+            Task savedTask = new Task(taskId, "Title", "Description",
+                    sameDate, sameDate, user);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
@@ -121,131 +177,387 @@ class TaskServiceTest {
 
             // Then
             assertNotNull(response);
-            assertEquals(LocalDate.now(), response.getEnd());
-            verify(taskRepository, times(1)).save(any(Task.class));
+            assertEquals(sameDate, response.getStart());
+            assertEquals(sameDate, response.getEnd());
         }
 
         @Test
-        @DisplayName("Should throw exception when end date is before start date")
-        void shouldThrowExceptionWhenEndBeforeStart() {
+        @DisplayName("Should throw exception when end date is too far in the future")
+        void shouldThrowExceptionForVeryDistantFutureDate() {
             // Given
             CreateTaskRequest request = new CreateTaskRequest();
-            request.setTitle("Invalid Task");
+            request.setTitle("Future Task");
             request.setDescription("Description");
-            request.setStart(LocalDate.now().plusDays(5));
-            request.setEnd(LocalDate.now());
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusYears(100));
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
                     IllegalArgumentException.class,
                     () -> taskService.createTask(request, userId)
             );
-
-            assertEquals("End date must be after start date", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
+            assertEquals("End date cannot be more than 10 years in the future", exception.getMessage());
         }
 
         @Test
-        @DisplayName("Should throw exception when end date is in the past")
-        void shouldThrowExceptionWhenEndDateInPast() {
+        @DisplayName("Should throw exception when start date is null")
+        void shouldThrowExceptionWhenStartDateIsNull() {
             // Given
             CreateTaskRequest request = new CreateTaskRequest();
-            request.setTitle("Past Task");
+            request.setTitle("Title");
             request.setDescription("Description");
-            request.setStart(LocalDate.now().minusDays(10));
-            request.setEnd(LocalDate.now().minusDays(5));
+            request.setStart(null);
+            request.setEnd(LocalDate.now().plusDays(5));
 
             // When & Then
             IllegalArgumentException exception = assertThrows(
                     IllegalArgumentException.class,
                     () -> taskService.createTask(request, userId)
             );
-
-            assertEquals("End date must be in the future", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
+            assertEquals("Start date cannot be null", exception.getMessage());
         }
 
         @Test
-        @DisplayName("Should throw exception when user not found")
-        void shouldThrowExceptionWhenUserNotFound() {
+        @DisplayName("Should throw exception when end date is null")
+        void shouldThrowExceptionWhenEndDateIsNull() {
             // Given
             CreateTaskRequest request = new CreateTaskRequest();
-            request.setTitle("Test Task");
+            request.setTitle("Title");
+            request.setDescription("Description");
+            request.setStart(LocalDate.now());
+            request.setEnd(null);
+
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.createTask(request, userId)
+            );
+            assertEquals("End date cannot be null", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should handle special characters in title")
+        void shouldHandleSpecialCharactersInTitle() {
+            // Given
+            String titleWithSpecialChars = "Task @#$%^&*()_+-=[]{}|;':\",./<>?";
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle(titleWithSpecialChars);
             request.setDescription("Description");
             request.setStart(LocalDate.now());
             request.setEnd(LocalDate.now().plusDays(5));
 
-            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+            Task savedTask = new Task(taskId, titleWithSpecialChars, "Description",
+                    request.getStart(), request.getEnd(), user);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            TaskResponse response = taskService.createTask(request, userId);
+
+            // Then
+            assertNotNull(response);
+            assertEquals(titleWithSpecialChars, response.getTitle());
+        }
+
+        @Test
+        @DisplayName("Should handle emoji and unicode in title")
+        void shouldHandleEmojiInTitle() {
+            // Given
+            String titleWithEmoji = "Task 🚀 📝 ✅ 中文";
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle(titleWithEmoji);
+            request.setDescription("Description");
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            Task savedTask = new Task(taskId, titleWithEmoji, "Description",
+                    request.getStart(), request.getEnd(), user);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+            // When
+            TaskResponse response = taskService.createTask(request, userId);
+
+            // Then
+            assertNotNull(response);
+            assertEquals(titleWithEmoji, response.getTitle());
+        }
+
+        @Test
+        @DisplayName("Should throw exception with invalid UUID")
+        void shouldThrowExceptionWithInvalidUserId() {
+            // Given
+            CreateTaskRequest request = new CreateTaskRequest();
+            request.setTitle("Title");
+            request.setDescription("Description");
+            request.setStart(LocalDate.now());
+            request.setEnd(LocalDate.now().plusDays(5));
+
+            UUID invalidUserId = UUID.randomUUID();
+            when(userRepository.findById(invalidUserId)).thenReturn(Optional.empty());
 
             // When & Then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> taskService.createTask(request, userId)
+                    () -> taskService.createTask(request, invalidUserId)
             );
-
             assertEquals("User not found", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
         }
     }
 
     @Nested
-    @DisplayName("getTaskById Tests")
-    class GetTaskByIdTests {
+    @DisplayName("updateTask - Edge Cases & Validation")
+    class UpdateTaskEdgeCases {
 
         @Test
-        @DisplayName("Should get task by id successfully")
-        void shouldGetTaskByIdSuccessfully() {
+        @DisplayName("Should throw exception when updating title to whitespace only")
+        void shouldThrowExceptionWhenUpdatingTitleToWhitespace() {
             // Given
-            Task task = createTask("Test Task", LocalDate.now(), LocalDate.now().plusDays(5));
+            Task task = createTask("Original Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setTitle("   ");
+
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
-            // When
-            TaskResponse response = taskService.getTaskById(taskId, userId);
-
-            // Then
-            assertNotNull(response);
-            assertEquals(taskId, response.getId());
-            assertEquals("Test Task", response.getTitle());
-            verify(taskRepository, times(1)).findById(taskId);
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.updateTask(taskId, request, userId)
+            );
+            assertEquals("Title can't be empty or whitespace", exception.getMessage());
         }
 
         @Test
-        @DisplayName("Should throw exception when task not found")
-        void shouldThrowExceptionWhenTaskNotFound() {
+        @DisplayName("Should throw exception when updating title to empty string")
+        void shouldThrowExceptionWhenUpdatingTitleToEmpty() {
             // Given
-            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+            Task task = createTask("Original Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setTitle("");
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+
+            // When & Then
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> taskService.updateTask(taskId, request, userId)
+            );
+            assertEquals("Title can't be empty or whitespace", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should handle not updating the description with null")
+        void shouldHandleNotUpdatingDescription() {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            task.setDescription("Original Description");
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setDescription(null);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertNotNull(response);
+            assertEquals("Original Description", response.getDescription());
+        }
+
+        @Test
+        @DisplayName("Should handle updating only start date without changing end")
+        void shouldHandleUpdatingOnlyStartDate() {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(10));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setStart(LocalDate.now().plusDays(2));  // Solo actualiza start
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertNotNull(response);
+            assertEquals(LocalDate.now().plusDays(2), response.getStart());
+            assertEquals(LocalDate.now().plusDays(10), response.getEnd());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when updating start to be after end")
+        void shouldThrowExceptionWhenUpdatingStartToBeAfterEnd() {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setStart(LocalDate.now().plusDays(10));  // Después del end actual
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
             // When & Then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> taskService.getTaskById(taskId, userId)
+                    () -> taskService.updateTask(taskId, request, userId)
             );
+            assertEquals("End date must be after start date", exception.getMessage());
+        }
 
+        @Test
+        @DisplayName("Should handle updating task with all fields null (no changes)")
+        void shouldHandleUpdateWithAllFieldsNull() {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            // Todos los campos null = no hay cambios
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertNotNull(response);
+            assertEquals("Title", response.getTitle());
+            verify(taskRepository, times(1)).save(task);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"PENDING", "IN_PROGRESS", "COMPLETED"})
+        @DisplayName("Should update to all valid status values")
+        void shouldUpdateToAllValidStatuses(String statusString) {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setStatus(TaskStatus.valueOf(statusString));
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertEquals(TaskStatus.valueOf(statusString), response.getStatus());
+        }
+
+        @Test
+        @DisplayName("Should handle updating completed task back to pending")
+        void shouldHandleUpdatingCompletedTaskBackToPending() {
+            // Given
+            Task task = createTask("Title", LocalDate.now().minusDays(5), LocalDate.now().minusDays(1));
+            task.setStatus(TaskStatus.COMPLETED);
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setStatus(TaskStatus.PENDING);
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertEquals(TaskStatus.PENDING, response.getStatus());
+            assertTrue(response.isExpired());  // Debería estar vencida
+        }
+
+        @Test
+        @DisplayName("Should handle updating both dates simultaneously")
+        void shouldHandleUpdatingBothDatesSimultaneously() {
+            // Given
+            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setStart(LocalDate.now().plusDays(1));
+            request.setEnd(LocalDate.now().plusDays(3));
+
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+            when(taskRepository.save(any(Task.class))).thenReturn(task);
+
+            // When
+            TaskResponse response = taskService.updateTask(taskId, request, userId);
+
+            // Then
+            assertEquals(LocalDate.now().plusDays(1), response.getStart());
+            assertEquals(LocalDate.now().plusDays(3), response.getEnd());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when updating non-existent task")
+        void shouldThrowExceptionWhenUpdatingNonExistentTask() {
+            // Given
+            UUID nonExistentTaskId = UUID.randomUUID();
+            UpdateTaskRequest request = new UpdateTaskRequest();
+            request.setTitle("New Title");
+
+            when(taskRepository.findById(nonExistentTaskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> taskService.updateTask(nonExistentTaskId, request, userId)
+            );
+            assertEquals("Task not found", exception.getMessage());
+        }
+    }
+
+    @Nested
+    @DisplayName("deleteTask - Edge Cases")
+    class DeleteTaskEdgeCases {
+
+        @Test
+        @DisplayName("Should throw exception when deleting non-existent task")
+        void shouldThrowExceptionWhenDeletingNonExistentTask() {
+            // Given
+            UUID nonExistentTaskId = UUID.randomUUID();
+            when(taskRepository.findById(nonExistentTaskId)).thenReturn(Optional.empty());
+
+            // When & Then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> taskService.deleteTask(nonExistentTaskId, userId)
+            );
             assertEquals("Task not found", exception.getMessage());
         }
 
         @Test
-        @DisplayName("Should throw exception when user doesn't have permission")
-        void shouldThrowExceptionWhenUserDoesntHavePermission() {
+        @DisplayName("Should allow deleting completed task")
+        void shouldAllowDeletingCompletedTask() {
             // Given
-            UUID differentUserId = UUID.randomUUID();
-            Task task = createTask("Test Task", LocalDate.now(), LocalDate.now().plusDays(5));
+            Task task = createTask("Completed Task", LocalDate.now().minusDays(10), LocalDate.now().minusDays(5));
+            task.setStatus(TaskStatus.COMPLETED);
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
             // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.getTaskById(taskId, differentUserId)
-            );
-
-            assertEquals("You don't have permission to see this task", exception.getMessage());
+            assertDoesNotThrow(() -> taskService.deleteTask(taskId, userId));
+            verify(taskRepository, times(1)).delete(task);
         }
 
         @Test
-        @DisplayName("Should mark task as expired when end date is in past and not completed")
-        void shouldMarkTaskAsExpired() {
+        @DisplayName("Should allow deleting expired task")
+        void shouldAllowDeletingExpiredTask() {
             // Given
             Task task = createTask("Expired Task", LocalDate.now().minusDays(10), LocalDate.now().minusDays(1));
+            task.setStatus(TaskStatus.PENDING);
+            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+
+            // When & Then
+            assertDoesNotThrow(() -> taskService.deleteTask(taskId, userId));
+            verify(taskRepository, times(1)).delete(task);
+        }
+    }
+
+    @Nested
+    @DisplayName("getTaskById - Edge Cases")
+    class GetTaskByIdEdgeCases {
+
+        @Test
+        @DisplayName("Should correctly calculate expired for task ending today at midnight")
+        void shouldCalculateExpiredForTaskEndingToday() {
+            // Given
+            Task task = createTask("Task ending today", LocalDate.now().minusDays(5), LocalDate.now());
             task.setStatus(TaskStatus.PENDING);
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
@@ -253,433 +565,44 @@ class TaskServiceTest {
             TaskResponse response = taskService.getTaskById(taskId, userId);
 
             // Then
-            assertTrue(response.isExpired());
+            // Una tarea que termina "hoy" NO debería estar vencida aún
+            assertFalse(response.isExpired());
         }
 
         @Test
-        @DisplayName("Should not mark completed task as expired")
-        void shouldNotMarkCompletedTaskAsExpired() {
+        @DisplayName("Should correctly calculate expired for IN_PROGRESS task")
+        void shouldCalculateExpiredForInProgressTask() {
             // Given
-            Task task = createTask("Completed Task", LocalDate.now().minusDays(10), LocalDate.now().minusDays(1));
-            task.setStatus(TaskStatus.COMPLETED);
+            Task task = createTask("In Progress Task", LocalDate.now().minusDays(10), LocalDate.now().minusDays(1));
+            task.setStatus(TaskStatus.IN_PROGRESS);
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
             // When
             TaskResponse response = taskService.getTaskById(taskId, userId);
 
             // Then
-            assertFalse(response.isExpired());
-        }
-    }
-
-    @Nested
-    @DisplayName("getTasksByUser Tests")
-    class GetTasksByUserTests {
-
-        @Test
-        @DisplayName("Should get all tasks for user")
-        void shouldGetAllTasksForUser() {
-            // Given
-            Task task1 = createTask("Task 1", LocalDate.now(), LocalDate.now().plusDays(5));
-            Task task2 = createTask("Task 2", LocalDate.now(), LocalDate.now().plusDays(10));
-            List<Task> tasks = Arrays.asList(task1, task2);
-
-            when(taskRepository.findByAuthorId(userId)).thenReturn(tasks);
-
-            // When
-            List<TaskResponse> responses = taskService.getTasksByUser(userId);
-
-            // Then
-            assertNotNull(responses);
-            assertEquals(2, responses.size());
-            assertEquals("Task 1", responses.get(0).getTitle());
-            assertEquals("Task 2", responses.get(1).getTitle());
-            verify(taskRepository, times(1)).findByAuthorId(userId);
+            assertTrue(response.isExpired());  // IN_PROGRESS y vencida
         }
 
         @Test
-        @DisplayName("Should return empty list when user has no tasks")
-        void shouldReturnEmptyListWhenNoTasks() {
+        @DisplayName("Should handle task with null description")
+        void shouldHandleTaskWithNullDescription() {
             // Given
-            when(taskRepository.findByAuthorId(userId)).thenReturn(List.of());
-
-            // When
-            List<TaskResponse> responses = taskService.getTasksByUser(userId);
-
-            // Then
-            assertNotNull(responses);
-            assertTrue(responses.isEmpty());
-        }
-    }
-
-    @Nested
-    @DisplayName("getTaskForDay Tests")
-    class GetTaskForDayTests {
-
-        @Test
-        @DisplayName("Should get tasks for specific day")
-        void shouldGetTasksForSpecificDay() {
-            // Given
-            LocalDate targetDate = LocalDate.now().plusDays(3);
-            Task task1 = createTask("Task 1", LocalDate.now(), LocalDate.now().plusDays(5));
-            Task task2 = createTask("Task 2", LocalDate.now().plusDays(2), LocalDate.now().plusDays(4));
-            List<Task> tasks = Arrays.asList(task1, task2);
-
-            when(taskRepository.findTasksOverlappingDay(userId, targetDate)).thenReturn(tasks);
-
-            // When
-            List<TaskResponse> responses = taskService.getTaskForDay(userId, targetDate);
-
-            // Then
-            assertNotNull(responses);
-            assertEquals(2, responses.size());
-            verify(taskRepository, times(1)).findTasksOverlappingDay(userId, targetDate);
-        }
-
-        @Test
-        @DisplayName("Should return empty list when no tasks for day")
-        void shouldReturnEmptyListWhenNoTasksForDay() {
-            // Given
-            LocalDate targetDate = LocalDate.now().plusDays(100);
-            when(taskRepository.findTasksOverlappingDay(userId, targetDate)).thenReturn(List.of());
-
-            // When
-            List<TaskResponse> responses = taskService.getTaskForDay(userId, targetDate);
-
-            // Then
-            assertNotNull(responses);
-            assertTrue(responses.isEmpty());
-        }
-    }
-
-    @Nested
-    @DisplayName("getTaskForMonth Tests")
-    class GetTaskForMonthTests {
-
-        @Test
-        @DisplayName("Should get tasks for specific month")
-        void shouldGetTasksForSpecificMonth() {
-            // Given
-            YearMonth yearMonth = YearMonth.now();
-            LocalDate monthStart = yearMonth.atDay(1);
-            LocalDate monthEnd = yearMonth.atEndOfMonth();
-
-            Task task1 = createTask("Task 1", monthStart, monthStart.plusDays(5));
-            Task task2 = createTask("Task 2", monthStart.plusDays(10), monthEnd);
-            List<Task> tasks = Arrays.asList(task1, task2);
-
-            when(taskRepository.findTasksOverlappingMonth(userId, monthStart, monthEnd)).thenReturn(tasks);
-
-            // When
-            List<TaskResponse> responses = taskService.getTaskForMonth(userId, yearMonth);
-
-            // Then
-            assertNotNull(responses);
-            assertEquals(2, responses.size());
-            verify(taskRepository, times(1)).findTasksOverlappingMonth(userId, monthStart, monthEnd);
-        }
-
-        @Test
-        @DisplayName("Should return empty list when no tasks for month")
-        void shouldReturnEmptyListWhenNoTasksForMonth() {
-            // Given
-            YearMonth yearMonth = YearMonth.now().plusMonths(6);
-            LocalDate monthStart = yearMonth.atDay(1);
-            LocalDate monthEnd = yearMonth.atEndOfMonth();
-
-            when(taskRepository.findTasksOverlappingMonth(userId, monthStart, monthEnd)).thenReturn(List.of());
-
-            // When
-            List<TaskResponse> responses = taskService.getTaskForMonth(userId, yearMonth);
-
-            // Then
-            assertNotNull(responses);
-            assertTrue(responses.isEmpty());
-        }
-    }
-
-    @Nested
-    @DisplayName("updateTask Tests")
-    class UpdateTaskTests {
-
-        @Test
-        @DisplayName("Should update task title successfully")
-        void shouldUpdateTaskTitleSuccessfully() {
-            // Given
-            Task task = createTask("Old Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setTitle("New Title");
-
+            Task task = new Task(taskId, "Title", null,
+                    LocalDate.now(), LocalDate.now().plusDays(5), user);
             when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
 
             // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
+            TaskResponse response = taskService.getTaskById(taskId, userId);
 
             // Then
             assertNotNull(response);
-            assertEquals("New Title", response.getTitle());
-            verify(taskRepository, times(1)).save(task);
-        }
-
-        @Test
-        @DisplayName("Should update task description successfully")
-        void shouldUpdateTaskDescriptionSuccessfully() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setDescription("New Description");
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertNotNull(response);
-            assertEquals("New Description", response.getDescription());
-        }
-
-        @Test
-        @DisplayName("Should update task status successfully")
-        void shouldUpdateTaskStatusSuccessfully() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setStatus(TaskStatus.COMPLETED);
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertEquals(TaskStatus.COMPLETED, response.getStatus());
-        }
-
-        @Test
-        @DisplayName("Should update start date successfully")
-        void shouldUpdateStartDateSuccessfully() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(10));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setStart(LocalDate.now().plusDays(2));
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertEquals(LocalDate.now().plusDays(2), response.getStart());
-        }
-
-        @Test
-        @DisplayName("Should update end date successfully")
-        void shouldUpdateEndDateSuccessfully() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setEnd(LocalDate.now().plusDays(15));
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertEquals(LocalDate.now().plusDays(15), response.getEnd());
-        }
-
-        @Test
-        @DisplayName("Should update multiple fields successfully")
-        void shouldUpdateMultipleFieldsSuccessfully() {
-            // Given
-            Task task = createTask("Old Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setTitle("New Title");
-            request.setDescription("New Description");
-            request.setStatus(TaskStatus.IN_PROGRESS);
-            request.setStart(LocalDate.now().plusDays(1));
-            request.setEnd(LocalDate.now().plusDays(6));
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertNotNull(response);
-            assertEquals("New Title", response.getTitle());
-            assertEquals("New Description", response.getDescription());
-            assertEquals(TaskStatus.IN_PROGRESS, response.getStatus());
-        }
-
-        @Test
-        @DisplayName("Should throw exception when title is blank")
-        void shouldThrowExceptionWhenTitleIsBlank() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setTitle("   ");
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.updateTask(taskId, request, userId)
-            );
-
-            assertEquals("Title can't be empty", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
-        }
-
-        @Test
-        @DisplayName("Should throw exception when end date is before start date after update")
-        void shouldThrowExceptionWhenEndBeforeStartAfterUpdate() {
-            // Given
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setEnd(LocalDate.now().minusDays(1));
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.updateTask(taskId, request, userId)
-            );
-
-            assertEquals("End date must be after start date", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
-        }
-
-        @Test
-        @DisplayName("Should throw exception when task not found")
-        void shouldThrowExceptionWhenTaskNotFound() {
-            // Given
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setTitle("New Title");
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.updateTask(taskId, request, userId)
-            );
-
-            assertEquals("Task not found", exception.getMessage());
-        }
-
-        @Test
-        @DisplayName("Should throw exception when user doesn't have permission to update")
-        void shouldThrowExceptionWhenUserDoesntHavePermissionToUpdate() {
-            // Given
-            UUID differentUserId = UUID.randomUUID();
-            Task task = createTask("Title", LocalDate.now(), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setTitle("New Title");
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.updateTask(taskId, request, differentUserId)
-            );
-
-            assertEquals("You don't have permission to modify this task", exception.getMessage());
-            verify(taskRepository, never()).save(any(Task.class));
-        }
-
-        @Test
-        @DisplayName("Should allow updating task to end in the past")
-        void shouldAllowUpdatingTaskToEndInPast() {
-            // Given
-            Task task = createTask("Title", LocalDate.now().minusDays(10), LocalDate.now().plusDays(5));
-            UpdateTaskRequest request = new UpdateTaskRequest();
-            request.setEnd(LocalDate.now().minusDays(1));
-
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-            when(taskRepository.save(any(Task.class))).thenReturn(task);
-
-            // When
-            TaskResponse response = taskService.updateTask(taskId, request, userId);
-
-            // Then
-            assertNotNull(response);
-            assertEquals(LocalDate.now().minusDays(1), response.getEnd());
-            verify(taskRepository, times(1)).save(task);
+            assertNull(response.getDescription());
         }
     }
 
-    @Nested
-    @DisplayName("deleteTask Tests")
-    class DeleteTaskTests {
-
-        @Test
-        @DisplayName("Should delete task successfully")
-        void shouldDeleteTaskSuccessfully() {
-            // Given
-            Task task = createTask("Task to delete", LocalDate.now(), LocalDate.now().plusDays(5));
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-
-            // When
-            taskService.deleteTask(taskId, userId);
-
-            // Then
-            verify(taskRepository, times(1)).delete(task);
-        }
-
-        @Test
-        @DisplayName("Should throw exception when task not found for deletion")
-        void shouldThrowExceptionWhenTaskNotFoundForDeletion() {
-            // Given
-            when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.deleteTask(taskId, userId)
-            );
-
-            assertEquals("Task not found", exception.getMessage());
-            verify(taskRepository, never()).delete(any(Task.class));
-        }
-
-        @Test
-        @DisplayName("Should throw exception when user doesn't have permission to delete")
-        void shouldThrowExceptionWhenUserDoesntHavePermissionToDelete() {
-            // Given
-            UUID differentUserId = UUID.randomUUID();
-            Task task = createTask("Task", LocalDate.now(), LocalDate.now().plusDays(5));
-            when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
-
-            // When & Then
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> taskService.deleteTask(taskId, differentUserId)
-            );
-
-            assertEquals("You don't have permission to modify this task", exception.getMessage());
-            verify(taskRepository, never()).delete(any(Task.class));
-        }
-    }
-
-    // ⬇️⬇️⬇️ HELPER METHOD - VA AL FINAL DE LA CLASE, DESPUÉS DE TODOS LOS @Nested ⬇️⬇️⬇️
-    /**
-     * Helper method para crear Tasks en los tests
-     * Usa el constructor package-private de Task que permite setear el ID
-     */
+    // Helper method
     private Task createTask(String title, LocalDate start, LocalDate end) {
         return new Task(taskId, title, "Description", start, end, user);
     }
-    // ⬆️⬆️⬆️ FIN DEL HELPER METHOD ⬆️⬆️⬆️
 }

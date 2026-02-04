@@ -26,6 +26,7 @@ public class Task {
     private String title;
 
     @Setter
+    @Column(length = 5000)
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -45,7 +46,6 @@ public class Task {
     @JoinColumn(name = "author_id")
     private User author;
 
-    // Constructor público original (para uso en producción)
     public Task(String title, String description, LocalDate start, LocalDate end, User authorUser) {
         this.title = title;
         this.description = description;
@@ -54,7 +54,7 @@ public class Task {
         this.end = end;
     }
 
-    // Constructor público para testing - permite setear el ID manualmente
+    // Constructor only for testing
     public Task(UUID id, String title, String description, LocalDate start, LocalDate end, User author) {
         this.id = id;
         this.title = title;
@@ -62,6 +62,5 @@ public class Task {
         this.start = start;
         this.end = end;
         this.author = author;
-        this.status = TaskStatus.PENDING;
     }
 }

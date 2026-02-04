@@ -46,8 +46,11 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request, HttpServletResponse response){
 
+        if (request.getUsername().trim().isEmpty()){
+            return ResponseEntity.badRequest().body(Map.of("error", "Username can't be empty"));
+        }
         if (userRepository.findByUsername(request.getUsername()).isPresent()){
-            return ResponseEntity.badRequest().body("Username already exists");
+            return ResponseEntity.badRequest().body(Map.of("error", "Username already exists"));
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
